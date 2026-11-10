@@ -27,6 +27,7 @@ internal data class TransactionEntity(
     val type: String,
     @ColumnInfo(name = "occurred_at") val occurredAt: Long,
     @ColumnInfo(name = "category_id") val categoryId: Long?,
+    @ColumnInfo(name = "note", defaultValue = "''") val note: String = "",
 )
 
 internal data class TransactionRow(

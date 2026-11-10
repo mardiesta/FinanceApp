@@ -13,6 +13,7 @@ internal object DatabaseProvider {
     fun get(context: Context): AppDatabase = instance ?: synchronized(this) {
         instance ?: Room.databaseBuilder<AppDatabase>(context.applicationContext, DATABASE_NAME)
             .setDriver(AndroidSQLiteDriver())
+            .addMigrations(MIGRATION_1_2)
             .build()
             .also { instance = it }
     }
