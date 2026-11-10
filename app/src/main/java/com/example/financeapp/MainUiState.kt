@@ -1,10 +1,13 @@
 package com.example.financeapp
 
-private const val INITIAL_BALANCE = 25_000
-
 internal data class MainUiState(
-    val balance: Int = INITIAL_BALANCE,
+    val amount: String = "",
+    val description: String = "",
+    val type: TransactionType = TransactionType.EXPENSE,
+    val balance: Int = 0,
     val transactionCount: Int = 0,
+    val transactions: List<Transaction> = emptyList(),
+    val error: TransactionError? = null,
 )
 
 internal enum class TransactionType {
@@ -15,23 +18,24 @@ internal enum class TransactionType {
 internal data class Transaction(
     val amount: Int,
     val type: TransactionType,
+    val description: String,
 )
 
-internal sealed interface MainUiEvent {
-    data class AddTransaction(val transaction: Transaction) : MainUiEvent
+internal enum class TransactionError {
+    INVALID_INPUT,
+    AMOUNT_TOO_LARGE,
 }
 
-internal fun reduce(state: MainUiState, event: MainUiEvent): MainUiState = when (event) {
-    is MainUiEvent.AddTransaction -> {
-        val transaction = event.transaction
-        require(transaction.amount > 0) { "Transaction amount must be positive" }
-        val change = when (transaction.type) {
-            TransactionType.INCOME -> transaction.amount
-            TransactionType.EXPENSE -> -transaction.amount
-        }
-        state.copy(
-            balance = state.balance + change,
-            transactionCount = state.transactionCount + 1,
-        )
-    }
+internal sealed interface MainUiEvent {
+    data class AmountChanged(val value: String) : MainUiEvent
+
+    data class DescriptionChanged(val value: String) : MainUiEvent
+
+    data class TypeChanged(val type: TransactionType) : MainUiEvent
+
+    data class AddTransaction(val transaction: Transaction) : MainUiEvent
+
+    data object InvalidTransaction : MainUiEvent
+
+    data object AmountTooLarge : MainUiEvent
 }
