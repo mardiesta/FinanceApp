@@ -1,71 +1,72 @@
 package com.example.financeapp
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.example.financeapp.data.DatabaseProvider
+import com.example.financeapp.data.MINOR_UNITS
+import com.example.financeapp.data.RoomTransactionRepository
+import com.example.financeapp.data.TransactionRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
-internal class TransactionViewModel : ViewModel() {
-    var uiState by mutableStateOf(MainUiState())
-        private set
+private const val STOP_TIMEOUT_MS = 5_000L
+
+internal class TransactionViewModel(private val repository: TransactionRepository) : ViewModel() {
+    private val form = MutableStateFlow(FormState())
+
+    val uiState: StateFlow<MainUiState> = combine(
+        form,
+        repository.transactions,
+        repository.balanceMinor,
+        repository.categories,
+    ) { currentForm, rows, balanceMinor, categories ->
+        MainUiState(
+            amount = currentForm.amount,
+            description = currentForm.description,
+            type = currentForm.type,
+            categoryId = currentForm.categoryId,
+            error = currentForm.error,
+            balance = (balanceMinor / MINOR_UNITS).toInt(),
+            transactionCount = rows.size,
+            transactions = rows,
+            categories = categories,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), MainUiState())
+
+    init {
+        viewModelScope.launch { repository.seedDefaultCategoriesIfEmpty() }
+    }
 
     fun onEvent(event: MainUiEvent) {
-        uiState = reduce(uiState, event)
+        form.update { reduceForm(it, event) }
     }
 
     fun addTransaction() {
-        onEvent(createAddEvent())
-    }
-
-    private fun createAddEvent(): MainUiEvent {
-        val description = uiState.description.trim()
-        val amount = uiState.amount.toIntOrNull()
-        return when {
-            uiState.amount.isEmpty() || description.isEmpty() -> MainUiEvent.InvalidTransaction
-            amount == null -> MainUiEvent.AmountTooLarge
-            amount <= 0 -> MainUiEvent.InvalidTransaction
-            else -> MainUiEvent.AddTransaction(Transaction(amount, uiState.type, description))
-        }
-    }
-
-    private fun reduce(state: MainUiState, event: MainUiEvent): MainUiState = when (event) {
-        is MainUiEvent.AmountChanged -> {
-            if (event.value.all(Char::isDigit)) {
-                state.copy(amount = event.value, error = null)
-            } else {
-                state
+        when (val result = submitForm(form.value)) {
+            is SubmitResult.Accepted -> {
+                viewModelScope.launch { repository.add(result.transaction) }
+                form.update { it.copy(amount = "", description = "", error = null) }
             }
+
+            is SubmitResult.Rejected -> form.update { it.copy(error = result.error) }
         }
-
-        is MainUiEvent.DescriptionChanged -> state.copy(description = event.value, error = null)
-
-        is MainUiEvent.TypeChanged -> state.copy(type = event.type, error = null)
-
-        is MainUiEvent.AddTransaction -> applyTransaction(state, event.transaction)
-
-        MainUiEvent.InvalidTransaction -> state.copy(error = TransactionError.INVALID_INPUT)
-
-        MainUiEvent.AmountTooLarge -> state.copy(error = TransactionError.AMOUNT_TOO_LARGE)
     }
 
-    private fun applyTransaction(state: MainUiState, transaction: Transaction): MainUiState {
-        require(transaction.amount > 0) { "Transaction amount must be positive" }
-        val change = when (transaction.type) {
-            TransactionType.INCOME -> transaction.amount.toLong()
-            TransactionType.EXPENSE -> -transaction.amount.toLong()
-        }
-        val newBalance = state.balance.toLong() + change
-        return if (newBalance in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
-            state.copy(
-                amount = "",
-                description = "",
-                error = null,
-                balance = newBalance.toInt(),
-                transactions = state.transactions + transaction,
-                transactionCount = state.transactionCount + 1,
-            )
-        } else {
-            state.copy(error = TransactionError.AMOUNT_TOO_LARGE)
+    companion object {
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val application = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
+                val database = DatabaseProvider.get(application)
+                TransactionViewModel(RoomTransactionRepository(database.transactionDao(), database.categoryDao()))
+            }
         }
     }
 }

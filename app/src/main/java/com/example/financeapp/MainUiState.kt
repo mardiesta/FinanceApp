@@ -1,13 +1,18 @@
 package com.example.financeapp
 
+import com.example.financeapp.data.CategoryEntity
+import com.example.financeapp.data.TransactionRow
+
 internal data class MainUiState(
     val amount: String = "",
     val description: String = "",
     val type: TransactionType = TransactionType.EXPENSE,
+    val categoryId: Long? = null,
+    val error: TransactionError? = null,
     val balance: Int = 0,
     val transactionCount: Int = 0,
-    val transactions: List<Transaction> = emptyList(),
-    val error: TransactionError? = null,
+    val transactions: List<TransactionRow> = emptyList(),
+    val categories: List<CategoryEntity> = emptyList(),
 )
 
 internal enum class TransactionType {
@@ -19,23 +24,10 @@ internal data class Transaction(
     val amount: Int,
     val type: TransactionType,
     val description: String,
+    val categoryId: Long?,
 )
 
 internal enum class TransactionError {
     INVALID_INPUT,
     AMOUNT_TOO_LARGE,
-}
-
-internal sealed interface MainUiEvent {
-    data class AmountChanged(val value: String) : MainUiEvent
-
-    data class DescriptionChanged(val value: String) : MainUiEvent
-
-    data class TypeChanged(val type: TransactionType) : MainUiEvent
-
-    data class AddTransaction(val transaction: Transaction) : MainUiEvent
-
-    data object InvalidTransaction : MainUiEvent
-
-    data object AmountTooLarge : MainUiEvent
 }
