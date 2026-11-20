@@ -20,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -27,13 +28,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.financeapp.data.MINOR_UNITS
 import com.example.financeapp.data.TransactionRow
 
 @Composable
 @Suppress("FunctionNaming")
-internal fun TransactionScreen(viewModel: TransactionViewModel = viewModel(factory = TransactionViewModel.Factory)) {
+internal fun TransactionScreen(viewModel: TransactionViewModel, showBalance: Boolean, onOpenSettings: () -> Unit) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Surface(
@@ -48,8 +48,17 @@ internal fun TransactionScreen(viewModel: TransactionViewModel = viewModel(facto
             verticalArrangement = Arrangement.spacedBy(space = 12.dp),
         ) {
             item {
+                TextButton(onClick = onOpenSettings) {
+                    Text(stringResource(R.string.settings_title))
+                }
+            }
+            item {
                 Text(
-                    text = stringResource(R.string.balance_summary, state.balance, state.transactionCount),
+                    text = if (showBalance) {
+                        stringResource(R.string.balance_summary, state.balance, state.transactionCount)
+                    } else {
+                        stringResource(R.string.transaction_count, state.transactionCount)
+                    },
                     style = MaterialTheme.typography.headlineSmall,
                 )
             }
